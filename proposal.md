@@ -16,8 +16,28 @@ Seluruh proses inferensi dirancang untuk berjalan secara efisien di lingkungan l
 
 Data
 Sumber Data
-Data dalam sistem Geo-Sentimen UMKM berasal dari kombinasi dataset publik dan data yang dikumpulkan secara mandiri dari sumber percakapan publik berbasis lokasi. Dataset publik utama yang digunakan untuk pelatihan ekstraksi entitas adalah IndoLEM yang menyediakan anotasi entitas bahasa Indonesia seperti lokasi dan organisasi. Dataset ini diperluas dengan anotasi tambahan kategori usaha UMKM melalui pendekatan weak labeling berbasis kamus jenis usaha lokal. Untuk tahap awal adaptasi sentimen bahasa Indonesia, digunakan subset Bahasa Indonesia dari NusaX sebagai sumber data sentimen umum sebelum dilakukan fine-tuning lanjutan pada domain ulasan UMKM.
-Data domain UMKM dikumpulkan dari percakapan dan ulasan publik yang menyebutkan lokasi dan jenis usaha, seperti komentar media sosial dan ulasan tempat pada platform peta digital. Data yang diambil meliputi teks ulasan, waktu publikasi, dan indikasi lokasi eksplisit atau implisit dalam teks. Selain itu, data geospasial wilayah administratif dan peta dasar diperoleh dari sumber terbuka seperti OpenStreetMap untuk kebutuhan geocoding dan visualisasi spasial. Kombinasi sumber ini memungkinkan pembentukan korpus sentimen berbasis lokasi yang relevan dengan konteks UMKM Indonesia.
+Sistem ini menggunakan kombinasi dataset publik (open-source) dan data yang dikumpulkan secara mandiri untuk melatih empat komponen utama model:
+
+1.  **Ekstraksi Entitas & Pemahaman Bahasa Utama**
+    *   **IndoLEM NER (UGM & UI)**: Dataset NER dengan ≈489K token dan 5 kategori entitas, digunakan sebagai *base model* ekstraksi lokasi dan organisasi. [[GitHub](https://github.com/indolem/indolem)]
+    *   **IndoNLU NERP**: Ekstensi dataset berita yang memiliki anotasi entitas khusus **FNB** (Food & Beverage), sangat penting untuk mapping entitas jenis bisnis (BIZ). [[HuggingFace](https://huggingface.co/datasets/indonlp/indonlu)]
+    *   **Dataset Instruksi LLM (evol-instruct & Cendol)**: Data *instruction-tuning* Bahasa Indonesia (hingga 50M instruksi) untuk melatih SLM sebagai agen penjelas (*explainer layer*). [[evol-instruct](https://huggingface.co/datasets/FreedomIntelligence/evol-instruct-indonesian)]
+
+2.  **Klasifikasi Sinyal Pasar (Market Signal)**
+    *   **NusaX (Subset Indonesia)**: ≈1.000 sampel sentimen 3-kelas sebagai *seed* pemahaman sentimen dasar. [[GitHub](https://github.com/IndoNLP/nusax)] [[HuggingFace](https://huggingface.co/datasets/indonlp/NusaX-senti)]
+    *   **Indonesian Sentiment & SmSA**: Ribuan ulasan layanan dan produk untuk adaptasi domain sebelum klasifikasi sinyal pasar. [[Indonesian Sentiment](https://huggingface.co/datasets/sepidmnorozy/Indonesian_sentiment)] [[SmSA](https://huggingface.co/datasets/indonlp/indonlu)]
+    *   **Google Maps Reviews (Places API)**: Estimasi 5–10K ulasan lokasi UMKM. Bertindak sebagai *ground truth* untuk keluhan (`COMPLAINT`) dan permintaan (`DEMAND_PRESENT`), dengan bobot keandalan data tertinggi (1.0). [[Places API](https://developers.google.com/maps/documentation/places/web-service/details)]
+    *   **Twitter/X Posts**: Estimasi 3–5K post untuk menangkap sinyal diskursus publik dan permintaan yang belum terpenuhi (`DEMAND_UNMET`). [[X Developer Platform](https://developer.x.com/en)]
+    *   **TikTok & Instagram Captions**: Estimasi 3–5K post untuk menangkap sinyal tren (`TREND`), promosi, dan ulasan estetika, dengan pertimbangan kompensasi bobot bias platform.
+
+3.  **Business Presence Engine (Suplai & Persaingan Ground Truth)**
+    *   **Google Maps POI & OpenStreetMap (Overpass API)**: Digunakan untuk mendapatkan jumlah pasti lokasi usaha sejenis di suatu area (*matched_business*) sebagai deteksi `SUPPLY_SIGNAL` langsung. [[Overpass API](https://overpass-turbo.eu/)]
+    *   **Daftar Waralaba / Franchise Indonesia**: Direktori 311+ merek terdaftar untuk menghitung *franchise ratio*, yaitu rasio dominasi bisnis waralaba berkapital besar terhadap usaha mandiri lokal.
+    *   **Taxonomy KBLI 2020**: ~1.810 kode kategori bisnis (BPS/OSS) untuk standarisasi tipe usaha yang diekstrak. [[OSS](https://oss.go.id/informasi/kbli-kode)]
+
+4.  **Data Geospasial & Pemetaan**
+    *   **GeoBoundaries Indonesia**: Polygon GeoJSON untuk visualisasi peta batas wilayah ADM1–ADM4. [[HDX](https://data.humdata.org/dataset/geoboundaries-admin-boundaries-for-indonesia)]
+    *   **Kamus Wilayah Administratif Indonesia**: Gazetteer berisikan >80.000 level desa/kelurahan hingga provinsi untuk proses *Location Expansion* dan geocoding query pengguna. [[GitHub](https://github.com/edwardsamuel/Wilayah-Administratif-Indonesia)]
 
 Persiapan Data
 Tahap persiapan data dimulai dari penyaringan teks publik yang relevan dengan aktivitas usaha dan lokasi di Indonesia. Data dibersihkan dari duplikasi, spam, dan konten tidak relevan, kemudian dilakukan normalisasi ringan tanpa menghilangkan karakteristik bahasa alami pengguna agar tetap sesuai dengan distribusi bahasa pada saat inferensi. Entitas lokasi dalam teks diekstraksi menggunakan model NER IndoBERT, kemudian dipetakan ke koordinat geografis melalui proses geocoding berbasis kamus wilayah administratif.
